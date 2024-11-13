@@ -6,13 +6,23 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // Track if auth check is in progress
   const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('role');
     if (token && role) {
-      setUser({ token, role });
+      API.get('/auth/verify', { headers: { Authorization: `Bearer ${token}` } })
+        .then(() => {
+          setUser({ token, role });
+        })
+        .catch(() => {
+          logout(); // Log out if token is invalid or expired
+        })
+        .finally(() => setLoading(false)); // End loading state
+    } else {
+      setLoading(false); // No token, end loading state
     }
   }, []);
 
@@ -23,11 +33,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       localStorage.setItem('role', role);
       setUser({ token, role });
-      if (role === 'boss') {
-        navigate('/boss-dashboard');
-      } else {
-        navigate('/sales-dashboard');
-      }
+      navigate(role === 'boss' ? '/boss-dashboard' : '/sales-dashboard');
     } catch (error) {
       throw error.response.data;
     }
@@ -39,6 +45,10 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     navigate('/');
   };
+
+  if (loading) {
+    return <div>Loading...</div>; // Display loading indicator while auth check is in progress
+  }
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
